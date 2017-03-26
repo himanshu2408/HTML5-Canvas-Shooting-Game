@@ -1,0 +1,396 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+  <head>
+    <title>Space Demo</title>
+    <link href="css/style.css" media="all" rel="stylesheet" type="text/css"/>
+  
+  <script type="text/javascript" src="scripts/jquery.min.js"></script>
+  <script type="text/javascript" src="scripts/jquery.hotkeys.js"></script>
+  <script type="text/javascript" src="scripts/key_status.js"></script>      
+	<script language="javascript" src="scripts/util.js" type="text/javascript"></script>
+	<script language="javascript" src="scripts/sprite.js" type="text/javascript"></script>
+	<script language="javascript" src="scripts/sound.js" type="text/javascript"></script>
+
+  </head>
+  <body>
+    
+    <script type='text/javascript'>
+        var backgroundImage = $("<img id='backgroundImage' src='images/background.gif'>");
+        backgroundImage.appendTo('body');
+
+
+        var CANVAS_WIDTH = 480;
+        var CANVAS_HEIGHT = 320;
+        var FPS = 30;
+        var Level = 1;
+
+        var intervalID = null;
+
+        function intervalManager(flag) {
+           if(flag)
+             intervalID =  setInterval(function() {
+                              if(player.active==true){
+                                update();
+                                draw();
+                              }
+                              else{
+                                gameOver();
+                              }
+                            }, 1000/FPS);
+           else
+             clearInterval(intervalID);
+        }
+
+        var canvasElement = $("<canvas id='canvas' width='" + CANVAS_WIDTH + 
+          "' height='" + CANVAS_HEIGHT + "'></canvas");
+        var canvas = canvasElement.get(0).getContext("2d");
+        canvasElement.appendTo('body');
+
+        document.getElementById('canvas').style.position = "relative";
+        document.getElementById('canvas').style.display = "block";
+        document.getElementById('canvas').style.marginTop = "-320px";
+        document.getElementById('backgroundImage').style.width = "480px";
+        document.getElementById('backgroundImage').style.height = "320px";
+
+        function update() {
+
+          if(keydown.space) {
+            player.shoot();
+          }
+        
+          if(keydown.left) {
+            player.x -= 5;
+          }
+        
+          if(keydown.right) {
+            player.x += 5;
+          }
+        
+          player.x = player.x.clamp(0, CANVAS_WIDTH - player.width);
+          
+          playerBullets.forEach(function(bullet) {
+            bullet.update();
+          });
+        
+          playerBullets = playerBullets.filter(function(bullet) {
+            return bullet.active;
+          });
+          
+          enemies.forEach(function(enemy) {
+            enemy.update();
+          });
+        
+          enemies = enemies.filter(function(enemy) {
+            return enemy.active;
+          });
+        
+          handleCollisions();
+        
+          if(Math.random() < 0.04) {
+            enemies.push(Enemy());
+          }
+
+          if(Math.random() < 0.04) {
+            enemies.push(Enemy2());
+          }
+          playerCross();
+          levelUp();
+        }
+
+        var score = 0;
+        function draw() {
+          canvas.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+          player.draw();
+          
+          playerBullets.forEach(function(bullet) {
+            bullet.draw();
+          });
+        
+          enemies.forEach(function(enemy) {
+            enemy.draw();
+          });
+
+          canvas.fillStyle = "#FFF";
+          canvas.font = "15px Verdana";
+          canvas.fillText ("Score: "+score, 370, 30);
+          canvas.fillText ("Enemies crossed: "+cross, 10, 30);
+          canvas.fillText ("Level: "+Level, 10, 50);
+        }
+
+        var player = {
+          active: true,
+          color: "#00A",
+          x: 220,
+          y: 270,
+          width: 32,
+          height: 32,
+          draw: function() {
+            canvas.fillStyle = this.color;
+            canvas.fillRect(this.x, this.y, this.width, this.height);
+          }
+        };
+        player.shoot = function() {
+          Sound.play("shoot");
+        
+          var bulletPosition = this.midpoint();
+        
+          playerBullets.push(Bullet({
+            speed: 5,
+            x: bulletPosition.x,
+            y: bulletPosition.y
+          }));
+        };
+        
+        player.midpoint = function() {
+          return {
+            x: this.x + this.width/2,
+            y: this.y + this.height/2
+          };
+        };
+
+        player.explode = function() {
+          this.active = false;
+          // Extra Credit: Add an explosion graphic and then end the game
+        };
+        
+        player.sprite = Sprite("player");
+        
+        player.draw = function() {
+          this.sprite.draw(canvas, this.x, this.y);
+        };
+
+
+        var playerBullets = [];
+        
+        function Bullet(I) {
+          I.active = true;
+        
+          I.xVelocity = 0;
+          I.yVelocity = -I.speed;
+          I.width = 3;
+          I.height = 3;
+          I.color = "#FFF";
+        
+          I.inBounds = function() {
+            return I.x >= 0 && I.x <= CANVAS_WIDTH &&
+              I.y >= 0 && I.y <= CANVAS_HEIGHT;
+          };
+        
+          I.draw = function() {
+            canvas.fillStyle = this.color;
+            canvas.fillRect(this.x, this.y, this.width, this.height);
+          };
+          
+          I.update = function() {
+            I.x += I.xVelocity;
+            I.y += I.yVelocity;
+        
+            I.active = I.active && I.inBounds();
+          };
+        
+          I.explode = function() {
+            this.active = false;
+            // Extra Credit: Add an explosion graphic
+          };
+        
+          return I;
+        }
+        
+        // ENEMIESSS
+        enemies = [];
+        
+        function Enemy(I) {
+          I = I || {};
+          I.type = 1;
+          I.active = true;
+          I.age = Math.floor(Math.random() * 128);
+          
+          I.color = "#A2B";
+        
+          I.x = CANVAS_WIDTH / 4 + Math.random() * CANVAS_WIDTH / 2;
+          I.y = 0;
+          I.xVelocity = 0
+          I.yVelocity = Level;
+        
+          I.width = 32;
+          I.height = 32;
+        
+          I.inBounds = function() {
+            return I.x >= 0 && I.x <= CANVAS_WIDTH &&
+              I.y >= 0 && I.y <= CANVAS_HEIGHT;
+          };
+        
+          I.sprite = Sprite("enemy");
+        
+          I.draw = function() {
+            this.sprite.draw(canvas, this.x, this.y);
+          };
+        
+          I.update = function() {
+            I.x += I.xVelocity;
+            I.y += I.yVelocity;
+        
+            I.xVelocity = 3 * Math.sin(I.age * Math.PI / 64);
+        
+            I.age++;
+        
+            I.active = I.active && I.inBounds();
+          };
+        
+          I.explode = function() {
+            Sound.play("explosion");
+            this.active = false;
+          };
+        
+          return I;
+        };
+        
+        
+        function Enemy2(I) {
+          I = I || {};
+          I.type = 2;
+          I.active = true;
+          I.age = Math.floor(Math.random() * 128);
+          
+          I.color = "#A2B";
+        
+          I.x = CANVAS_WIDTH / 4 + Math.random() * CANVAS_WIDTH / 2;
+          I.y = 0;
+          I.xVelocity = 0
+          I.yVelocity = Level;
+        
+          I.width = 32;
+          I.height = 32;
+        
+          I.inBounds = function() {
+            return I.x >= 0 && I.x <= CANVAS_WIDTH &&
+              I.y >= 0 && I.y <= CANVAS_HEIGHT;
+          };
+        
+          I.sprite = Sprite("enemy2");
+        
+          I.draw = function() {
+            this.sprite.draw(canvas, this.x, this.y);
+          };
+        
+          I.update = function() {
+            I.x += I.xVelocity;
+            I.y += I.yVelocity;
+        
+            I.xVelocity = 3 * Math.sin(I.age * Math.PI / 64);
+        
+            I.age++;
+        
+            I.active = I.active && I.inBounds();
+          };
+        
+          I.explode = function() {
+            Sound.play("explosion");
+            this.active = false;
+          };
+        
+          return I;
+        };
+
+
+        // COLLISION
+        function collides(a, b) {
+          return a.x < b.x + b.width &&
+                 a.x + a.width > b.x &&
+                 a.y < b.y + b.height &&
+                 a.y + a.height > b.y;
+        }
+        
+        function handleCollisions() {
+          playerBullets.forEach(function(bullet) {
+            enemies.forEach(function(enemy) {
+              if(collides(bullet, enemy)) {
+                enemy.explode();
+                if(enemy.type == 1){
+                  score+= 10;
+                }
+                else if(enemy.type == 2){
+                  score+= 20;
+                }
+                bullet.active = false;
+              }
+            });
+          });
+        
+          enemies.forEach(function(enemy) {
+            if(collides(enemy, player)) {
+              enemy.explode();
+              canvas.clearRect(player.x, player.y, 32, 32);
+              player.explode();
+            }
+          });
+        }
+
+
+      var cross=0;
+      function playerCross(){
+        enemies.forEach(function(enemy){
+          if(enemy.y>=player.y){
+            enemy.active = false;
+            console.log(enemy.y+" "+player.y)
+            cross++;
+            console.log(cross);
+            if(cross>=3){
+              player.active = false;
+            }
+          }
+        });
+      }
+
+      function gameOver(){
+        console.log("game over");
+        canvas.fillStyle = "#fff";
+        canvas.font = "30px Verdana";
+        canvas.fillText ("GAME OVER!!!", 120, 120);
+        canvas.font = "20px Verdana";
+        canvas.fillText ("Final Score: "+ score, 150, 155);
+        enemies.forEach(function(enemy){
+          enemy.active = false;
+        });
+        playerBullets.forEach(function(bullet){
+          bullet.active = false;
+        });
+        $("#startButton").show();
+        intervalManager(false);
+      }
+
+      function startGame(){
+        console.log("game is starting");
+        score = 0;
+        prevLevelScore = 0;
+        cross = 0;
+        Level = 1;
+        player.active = true;
+        intervalManager(true);
+      }
+      prevLevelScore = 0;
+      function levelUp(){
+        if(score >= (500*Level)+prevLevelScore){
+          canvas.fillStyle = "#000";
+          canvas.font = "30px Verdana";
+          canvas.fillText ("LEVEL UP BRO!!!", 100, 160);
+          //intervalManager(false);
+          prevLevelScore = score;
+          if(prevLevelScore%500 !=0){
+            prevLevelScore = prevLevelScore-(prevLevelScore%500);
+          }
+          Level++;
+          console.log("Score: "+score+ " Level: "+Level);
+        }
+      }
+    </script>
+    <button id="startButton" onclick="startGame();" style="position: relative; display: block; margin-top: -150px; margin-left: 190px; color: #000; cursor: pointer; margin-right: 5px">Start Game</button>
+    <script type="text/javascript">
+      $(document).ready(function(){
+        $("#startButton").click(function(){
+            $("#startButton").hide();
+        });
+      });
+    </script>
+  </body>
+</html>
